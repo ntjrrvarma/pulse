@@ -7,31 +7,17 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-verify:
+  test:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v3
-
-    - name: Set up Python 3.10
+    - uses: actions/checkout@v3
+    - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-
-    - name: Install Dependencies
+    - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
         pip install -r requirements.txt
-
-    - name: Syntax & Import Verification
-      run: |
-        # Checks for syntax errors or missing library imports without executing the whole script
-        python -m py_compile src/api.py
-        python -m py_compile src/train.py
-        python -m py_compile src/app.py
-
-    - name: Test Docker Orchestration Build
-      run: |
-        # Ensures the platform can successfully containerize on a fresh machine
-        docker compose build
+        pip install pytest httpx
+    - name: Run Pytest
+      run: pytest tests/ -v

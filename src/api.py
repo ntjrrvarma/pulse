@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import torch
@@ -5,20 +6,16 @@ import json
 import joblib
 import os
 import numpy as np
-from model import PulseLSTM
-
-app = FastAPI(
-    title="Pulse AI Anomaly Service",
-    description="Adaptive neural network inference microservice"
-)
+from src.model import PulseLSTM
 
 # Global runtime state
 MODEL = None
 SCALER = None
 META = {}
 
-@app.on_event("startup")
-def load_artifacts():
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     global MODEL, SCALER, META
     meta_path = "checkpoints/model_meta.json"
     weights_path = "checkpoints/universal_model.pt"
@@ -42,6 +39,15 @@ def load_artifacts():
     MODEL.eval()
     print(f"Loaded Pulse model. Features: {META['feature_cols']} | Dynamic Threshold: {META['threshold_mse']}")
 
+    yield
+
+
+app = FastAPI(
+    title="Pulse AI Anomaly Service",
+    description="Adaptive neural network inference microservice",
+    lifespan=lifespan,
+)
+
 class TelemetryPayload(BaseModel):
     # Expects timesteps = seq_length + 1
     data: list[list[float]]
@@ -57,18 +63,24 @@ def health_check():
 
 @app.post("/analyze")
 def analyze_telemetry(payload: TelemetryPayload):
-    required_len = META["seq_length"] + 1
+    seq_length = META.get("seq_length", 15)
+    required_len = seq_length + 1
     if len(payload.data) != required_len:
         raise HTTPException(
             status_code=400,
-            detail=f"Expected exactly {required_len} timesteps ({META['seq_length']} historical + 1 current target)."
+            detail=f"Expected exactly {required_len} timesteps ({seq_length} historical + 1 current target)."
         )
 
+    num_features = META.get("num_features")
+    if num_features is None:
+        raise HTTPException(status_code=503, detail="Model metadata is not loaded.")
+
     raw_data = np.array(payload.data)
-    if raw_data.shape[1] != META["num_features"]:
+    if raw_data.shape[1] != num_features:
+        feature_cols = META.get("feature_cols", [])
         raise HTTPException(
             status_code=400,
-            detail=f"Expected {META['num_features']} columns matching: {META['feature_cols']}"
+            detail=f"Expected {num_features} columns matching: {feature_cols}"
         )
 
     # 1. Normalize
