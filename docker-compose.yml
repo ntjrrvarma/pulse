@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  pulse-api:
+    build: .
+    container_name: pulse-api
+    command: uvicorn src.api:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./checkpoints:/app/checkpoints
+    restart: unless-stopped
+
+  pulse-ui:
+    build: .
+    container_name: pulse-ui
+    command: streamlit run src/app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./checkpoints:/app/checkpoints
+    depends_on:
+      - pulse-api
+    restart: unless-stopped
