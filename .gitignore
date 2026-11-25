@@ -8,3 +8,7 @@ venv/
 *.pyo
 *.pyd
 data/uploaded_data.csv
+
+# Local AI Playbook & Agent Skills (do not push)
+/.agents/
+/AI_ECOSYSTEM_PLAYBOOK.md
